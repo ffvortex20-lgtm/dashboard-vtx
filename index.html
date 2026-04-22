@@ -21,6 +21,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
+        // --- NAVEGAÇÃO ---
         window.showTab = (tabId) => {
             document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
             document.getElementById(tabId).style.display = 'block';
@@ -29,7 +30,7 @@
         };
 
         function init() {
-            // Monitorar Usuários
+            // Monitorar Clientes
             onValue(ref(db, 'KeysUsers'), (snapshot) => {
                 const list = document.getElementById('userTable');
                 list.innerHTML = "";
@@ -46,7 +47,7 @@
                             <td class="actions">
                                 <button onclick="upStat('KeysUsers/${child.key}','ativada')">Ativar</button>
                                 <button class="ban" onclick="upStat('KeysUsers/${child.key}','banido')">Banir</button>
-                                <button class="del" onclick="remove(ref(db, 'KeysUsers/${child.key}'))">X</button>
+                                <button class="del" onclick="deleteItem('KeysUsers/${child.key}')">X</button>
                             </td>
                         </tr>`;
                 });
@@ -59,56 +60,69 @@
                 list.innerHTML = "";
                 snapshot.forEach((child) => {
                     const data = child.val();
+                    const resId = child.key;
                     list.innerHTML += `
                         <tr>
                             <td><b>${data.user}</b></td>
-                            <td><code>${data.pass}</code></td>
+                            <td><code id="pass-${resId}">${data.pass}</code></td>
                             <td><b style="color:#00ff88">${data.credits}</b></td>
                             <td class="actions">
-                                <button onclick="addCredit('${child.key}', ${data.credits})">+ Créditos</button>
-                                <button class="del" onclick="remove(ref(db, 'Resellers/${child.key}'))">Remover</button>
+                                <button onclick="addCredit('${resId}', ${data.credits})">+ Créditos</button>
+                                <button onclick="resetPass('${resId}')">Reset Senha</button>
+                                <button class="del" onclick="deleteItem('Resellers/${resId}', 'Deseja excluir este revendedor?')">Excluir</button>
                             </td>
                         </tr>`;
                 });
             });
         }
 
-        // Funções Master
+        // --- FUNÇÕES MASTER ---
         window.upStat = (path, s) => update(ref(db, path), { status: s });
-        
-        window.gerarKeyCliente = () => {
-            const prefix = document.getElementById('k_prefix').value || "VTX";
-            const dias = document.getElementById('k_dias').value || "30";
-            const novaKey = `${prefix}-${Math.floor(1000 + Math.random() * 9999)}`;
-            set(ref(db, `KeysUsers/KEY-${Date.now()}`), {
-                key: novaKey, status: "ativada", uid: "AGUARDANDO", validade: dias, device: "Admin"
-            });
-            alert("Key Gerada: " + novaKey);
+
+        window.deleteItem = (path, msg = "Deseja excluir permanentemente?") => {
+            if(confirm(msg)) remove(ref(db, path));
+        };
+
+        window.resetPass = (resId) => {
+            const novaSenha = prompt("Digite a nova senha para este revendedor:");
+            if(novaSenha) {
+                update(ref(db, `Resellers/${resId}`), { pass: novaSenha })
+                .then(() => alert("Senha alterada com sucesso!"));
+            }
+        };
+
+        window.addCredit = (resId, current) => {
+            const qtd = prompt("Quantos créditos deseja ADICIONAR?");
+            if(qtd && !isNaN(qtd)) {
+                update(ref(db, `Resellers/${resId}`), { credits: parseInt(current) + parseInt(qtd) });
+            }
         };
 
         window.criarRevendedor = () => {
             const user = document.getElementById('res_user').value;
             const pass = document.getElementById('res_pass').value;
             const cred = document.getElementById('res_cred').value || "0";
-            if(!user || !pass) return alert("Preencha tudo!");
+            if(!user || !pass) return alert("Usuário e Senha são obrigatórios!");
             
             set(ref(db, `Resellers/${user}`), {
-                user: user, pass: pass, credits: parseInt(cred)
-            }).then(() => alert("Revendedor Criado!"));
+                user: user, 
+                pass: pass, 
+                credits: parseInt(cred)
+            }).then(() => {
+                alert("Revendedor cadastrado!");
+                document.getElementById('res_user').value = "";
+                document.getElementById('res_pass').value = "";
+            });
         };
 
-        window.addCredit = (user, current) => {
-            const qtd = prompt("Quantos créditos adicionar?");
-            if(qtd) update(ref(db, `Resellers/${user}`), { credits: current + parseInt(qtd) });
-        };
-
-        window.enviarUpdate = () => {
-            set(ref(db, 'update'), {
-                title: document.getElementById('up_t').value,
-                desc: document.getElementById('up_d').value,
-                ver: document.getElementById('up_v').value,
-                link: document.getElementById('up_l').value
-            }).then(() => alert("Update Enviado!"));
+        window.gerarKeyMaster = () => {
+            const prefix = document.getElementById('k_prefix').value || "VTX";
+            const dias = document.getElementById('k_dias').value || "30";
+            const novaKey = `${prefix}-${Math.floor(1000 + Math.random() * 9999)}`;
+            set(ref(db, `KeysUsers/KEY-${Date.now()}`), {
+                key: novaKey, status: "ativada", uid: "AGUARDANDO", validade: dias, device: "Painel Master"
+            });
+            alert("Key Master Gerada: " + novaKey);
         };
 
         init();
@@ -117,7 +131,7 @@
     <style>
         body { margin: 0; background: #050505; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
         aside { width: 240px; background: #000; border-right: 1px solid #1a1a1a; padding: 25px; flex-shrink: 0; }
-        .logo { color: #00ccff; font-weight: bold; text-align: center; font-size: 1.4rem; margin-bottom: 30px; border-bottom: 1px solid #1a1a1a; padding-bottom: 15px; }
+        .logo { color: #00ccff; font-weight: bold; text-align: center; font-size: 1.3rem; margin-bottom: 30px; border-bottom: 1px solid #1a1a1a; padding-bottom: 15px; }
         .nav-link { display: block; padding: 12px; color: #666; text-decoration: none; cursor: pointer; border-radius: 8px; margin-bottom: 8px; font-weight: bold; transition: 0.3s; }
         .nav-link:hover, .nav-link.active { background: #111; color: #00ccff; }
         main { flex-grow: 1; padding: 30px; overflow-y: auto; background: #080808; }
@@ -131,11 +145,14 @@
         td { padding: 12px 15px; border-bottom: 1px solid #1a1a1a; font-size: 0.85rem; }
         .status.ativada { color: #00ff88; }
         .status.banido { color: #ff4444; }
-        .actions button { padding: 5px 10px; background: #000; border: 1px solid #333; color: #eee; cursor: pointer; border-radius: 4px; font-size: 0.7rem; margin-right: 3px; }
-        .actions .del { background: #ff4444; border: none; }
+        .actions { display: flex; gap: 5px; }
+        .actions button { padding: 6px 10px; background: #000; border: 1px solid #333; color: #eee; cursor: pointer; border-radius: 4px; font-size: 0.7rem; }
+        .actions .del { background: #ff4444; border: none; color: white; }
         .box { background: #111; padding: 25px; border-radius: 15px; max-width: 450px; border: 1px solid #1a1a1a; margin-bottom: 20px; }
-        input, textarea { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #222; color: #fff; border-radius: 8px; box-sizing: border-box; }
-        .btn-main { background: #00ccff; color: #000; border: none; padding: 15px; width: 100%; font-weight: bold; cursor: pointer; border-radius: 8px; }
+        input { width: 100%; padding: 12px; margin: 8px 0; background: #000; border: 1px solid #222; color: #fff; border-radius: 8px; box-sizing: border-box; }
+        .btn-main { background: #00ccff; color: #000; border: none; padding: 15px; width: 100%; font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 10px; }
+        code { background: #222; padding: 2px 6px; border-radius: 4px; color: #ffbb00; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
     </style>
 </head>
 <body>
@@ -144,19 +161,18 @@
     <div class="logo">VORTEX MASTER</div>
     <a class="nav-link active" onclick="showTab('tab-clientes')">👥 Clientes</a>
     <a class="nav-link" onclick="showTab('tab-resellers')">🤝 Revendedores</a>
-    <a class="nav-link" onclick="showTab('tab-gerar')">🔑 Gerar Key</a>
-    <a class="nav-link" onclick="showTab('tab-up')">🚀 Update App</a>
+    <a class="nav-link" onclick="showTab('tab-gerar')">🔑 Gerar Key Master</a>
 </aside>
 
 <main>
     <div id="tab-clientes" class="tab-content" style="display:block">
         <div class="stats">
-            <div class="card"><span>Usuários Online</span><b id="count-ativos">0</b></div>
+            <div class="card"><span>Usuários Ativos</span><b id="count-ativos">0</b></div>
         </div>
         <div class="table-container">
             <table>
                 <thead>
-                    <tr><th>Key</th><th>Status</th><th>Validade</th><th>Dispositivo</th><th>Ações</th></tr>
+                    <tr><th>Key</th><th>Status</th><th>Validade</th><th>Device</th><th>Ações</th></tr>
                 </thead>
                 <tbody id="userTable"></tbody>
             </table>
@@ -165,16 +181,17 @@
 
     <div id="tab-resellers" class="tab-content">
         <div class="box">
-            <h3>Novo Revendedor</h3>
-            <input type="text" id="res_user" placeholder="Login do Revendedor">
-            <input type="text" id="res_pass" placeholder="Senha do Revendedor">
-            <input type="number" id="res_cred" placeholder="Créditos Iniciais">
-            <button class="btn-main" onclick="criarRevendedor()">CRIAR REVENDEDOR</button>
+            <h3>Cadastrar Novo Revendedor</h3>
+            <input type="text" id="res_user" placeholder="Login (ex: revenda01)">
+            <input type="text" id="res_pass" placeholder="Senha de acesso">
+            <input type="number" id="res_cred" placeholder="Créditos (Keys)">
+            <button class="btn-main" onclick="criarRevendedor()">CRIAR CONTA REVENDA</button>
         </div>
+
         <div class="table-container">
             <table>
                 <thead>
-                    <tr><th>Login</th><th>Senha</th><th>Créditos</th><th>Ações</th></tr>
+                    <tr><th>Login</th><th>Senha</th><th>Créditos</th><th>Ações Administrativas</th></tr>
                 </thead>
                 <tbody id="resellerTable"></tbody>
             </table>
@@ -183,21 +200,12 @@
 
     <div id="tab-gerar" class="tab-content">
         <div class="box">
-            <h3>Gerar Key Master</h3>
-            <input type="text" id="k_prefix" placeholder="Prefixo (Ex: MASTER)">
+            <h3>Gerar Acesso Direto</h3>
+            <label>Prefixo da Key</label>
+            <input type="text" id="k_prefix" placeholder="Ex: ADM">
+            <label>Dias</label>
             <input type="number" id="k_dias" value="30">
-            <button class="btn-main" onclick="gerarKeyCliente()">GERAR AGORA</button>
-        </div>
-    </div>
-
-    <div id="tab-up" class="tab-content">
-        <div class="box">
-            <h3>Update Remoto</h3>
-            <input type="text" id="up_t" placeholder="Título">
-            <textarea id="up_d" placeholder="Novidades..."></textarea>
-            <input type="text" id="up_v" placeholder="Versão">
-            <input type="text" id="up_l" placeholder="Link Download">
-            <button class="btn-main" onclick="enviarUpdate()">PUBLICAR UPDATE</button>
+            <button class="btn-main" onclick="gerarKeyMaster()">GERAR E SALVAR</button>
         </div>
     </div>
 </main>
