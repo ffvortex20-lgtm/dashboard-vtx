@@ -9,7 +9,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
         import { getDatabase, ref, set, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        // CONFIGURAÇÃO FIREBASE (Sua configuração atual)
+        // CONFIGURAÇÃO FIREBASE
         const firebaseConfig = {
             apiKey: "AIzaSyACGn5I--vTEmJ6eijN2lytZiMgo2ElnW4",
             authDomain: "vortexdev2.firebaseapp.com",
@@ -48,13 +48,13 @@
                             <td><span class="badge-key">${data.key || '---'}</span></td>
                             <td><span class="status-dot ${data.status}"></span> ${data.status}</td>
                             <td>${data.validade || '1'}D</td>
-                            <td class="uid-col">${data.uid || 'Nenhum'}</td>
+                            <td class="uid-col" title="${data.uid}">${data.uid || 'Nenhum'}</td>
                             <td><small>${data.criadoPor || 'Admin'}</small></td>
                             <td class="actions">
-                                <button class="btn-action green" onclick="upStat('KeysUsers/${child.key}','ativada')">✔</button>
-                                <button class="btn-action yellow" onclick="resetHWID('${child.key}')">🔄</button>
-                                <button class="btn-action red" onclick="upStat('KeysUsers/${child.key}','banido')">🚫</button>
-                                <button class="btn-action del" onclick="deleteData('KeysUsers/${child.key}')">🗑</button>
+                                <button class="btn-action green" title="Ativar" onclick="upStat('KeysUsers/${child.key}','ativada')">✔</button>
+                                <button class="btn-action yellow" title="Reset HWID" onclick="resetHWID('${child.key}')">🔄</button>
+                                <button class="btn-action red" title="Banir" onclick="upStat('KeysUsers/${child.key}','banido')">🚫</button>
+                                <button class="btn-action del" title="Excluir" onclick="deleteData('KeysUsers/${child.key}')">🗑</button>
                             </td>
                         </tr>`;
                 });
@@ -83,33 +83,44 @@
             });
         }
 
-        // FUNÇÕES (MANTIDAS DO ANTERIOR)
+        // FUNÇÕES ADMINISTRATIVAS
         window.upStat = (path, s) => update(ref(db, path), { status: s });
         window.resetHWID = (id) => update(ref(db, `KeysUsers/${id}`), { uid: "RESETADO", device: "Limpo pelo ADM" });
         window.deleteData = (path) => confirm("Excluir definitivamente?") && remove(ref(db, path));
+        
         window.addCredit = (id, atual) => {
             const qtd = prompt("Adicionar quantos créditos?");
-            if(qtd) update(ref(db, `Resellers/${id}`), { credits: atual + parseInt(qtd) });
+            if(qtd && !isNaN(qtd)) update(ref(db, `Resellers/${id}`), { credits: atual + parseInt(qtd) });
         };
+
         window.criarRevendedor = () => {
             const user = document.getElementById('res_user').value;
             const pass = document.getElementById('res_pass').value;
             const cred = document.getElementById('res_cred').value || "0";
-            if(user && pass) set(ref(db, `Resellers/${user}`), { user, pass, credits: parseInt(cred) });
+            if(!user || !pass) return alert("Preencha Login e Senha!");
+            set(ref(db, `Resellers/${user}`), { user, pass, credits: parseInt(cred) });
+            alert("Revendedor Criado!");
         };
+
         window.enviarUpdate = () => {
             set(ref(db, 'update'), {
                 title: document.getElementById('up_t').value,
                 desc: document.getElementById('up_d').value,
                 ver: document.getElementById('up_v').value,
                 link: document.getElementById('up_l').value
-            }).then(() => alert("Update Enviado!"));
+            }).then(() => alert("Update Publicado!"));
         };
+
+        // GERAR MASTER CORRIGIDO
         window.gerarKeyMaster = () => {
-            const novaKey = `VTX-${Math.floor(1000 + Math.random() * 9000)}`;
+            const prefix = document.getElementById('k_prefix').value || "VTX";
+            const dias = document.getElementById('k_dias').value || "30";
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            const novaKey = `${prefix}-${randomNum}`;
+            
             set(ref(db, `KeysUsers/KEY-${Date.now()}`), {
-                key: novaKey, status: "ativada", uid: "AGUARDANDO", validade: "30", criadoPor: "ADMIN"
-            });
+                key: novaKey, status: "ativada", uid: "AGUARDANDO", validade: dias, criadoPor: "ADMIN", device: "Painel Master"
+            }).then(() => alert("Key Gerada: " + novaKey));
         };
 
         init();
@@ -117,107 +128,47 @@
 
     <style>
         :root {
-            --neon-blue: #00d2ff;
-            --neon-green: #00ff88;
-            --neon-red: #ff3e3e;
-            --bg-dark: #08080a;
-            --glass: rgba(255, 255, 255, 0.03);
-            --glass-border: rgba(255, 255, 255, 0.08);
+            --neon-blue: #00d2ff; --neon-green: #00ff88; --neon-red: #ff3e3e;
+            --bg-dark: #08080a; --glass: rgba(255, 255, 255, 0.03); --glass-border: rgba(255, 255, 255, 0.08);
         }
-
         body {
-            margin: 0; background: var(--bg-dark); color: #fff;
-            font-family: 'Poppins', sans-serif; display: flex; height: 100vh; overflow: hidden;
+            margin: 0; background: var(--bg-dark); color: #fff; font-family: 'Poppins', sans-serif;
+            display: flex; height: 100vh; overflow: hidden;
             background-image: radial-gradient(circle at 50% -20%, #1a1a2e, #08080a);
         }
-
-        /* Sidebar */
         aside {
             width: 260px; background: rgba(0,0,0,0.4); backdrop-filter: blur(10px);
-            border-right: 1px solid var(--glass-border); padding: 30px 20px;
-            display: flex; flex-direction: column; z-index: 10;
+            border-right: 1px solid var(--glass-border); padding: 30px 20px; display: flex; flex-direction: column;
         }
-
-        .logo { 
-            font-size: 1.6rem; font-weight: 900; color: var(--neon-blue);
-            text-align: center; margin-bottom: 40px; letter-spacing: 3px;
-            text-shadow: 0 0 15px rgba(0, 210, 255, 0.5);
-        }
-
+        .logo { font-size: 1.6rem; font-weight: 900; color: var(--neon-blue); text-align: center; margin-bottom: 40px; letter-spacing: 3px; }
         .nav-link {
-            padding: 14px 18px; color: #888; text-decoration: none; cursor: pointer;
-            border-radius: 12px; margin-bottom: 10px; transition: 0.3s;
-            display: flex; align-items: center; gap: 12px; font-weight: 500;
+            padding: 14px 18px; color: #888; text-decoration: none; cursor: pointer; border-radius: 12px;
+            margin-bottom: 10px; transition: 0.3s; font-weight: 500;
         }
-
-        .nav-link:hover, .nav-link.active {
-            background: var(--glass); color: #fff; border: 1px solid var(--glass-border);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-
-        /* Player Spotify - Minimalista */
-        .music-player {
-            margin-top: auto; border-radius: 15px; overflow: hidden;
-            border: 1px solid var(--glass-border); opacity: 0.8; transition: 0.5s;
-        }
-        .music-player:hover { opacity: 1; }
-
-        /* Main Content */
-        main { flex: 1; padding: 40px; overflow-y: auto; position: relative; }
-
+        .nav-link:hover, .nav-link.active { background: var(--glass); color: #fff; border: 1px solid var(--glass-border); }
+        .music-player { margin-top: auto; border-radius: 15px; overflow: hidden; border: 1px solid var(--glass-border); }
+        main { flex: 1; padding: 40px; overflow-y: auto; }
         .tab-content { display: none; animation: slideUp 0.4s ease forwards; }
         .tab-content.active { display: block; }
-
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Dashboard Cards */
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
         .stats { display: flex; gap: 20px; margin-bottom: 30px; }
-        .card {
-            background: var(--glass); border: 1px solid var(--glass-border);
-            padding: 25px; border-radius: 20px; flex: 1;
-            backdrop-filter: blur(5px); transition: 0.3s;
-        }
-        .card:hover { transform: translateY(-5px); border-color: var(--neon-blue); }
-        .card span { font-size: 0.8rem; color: #666; text-transform: uppercase; letter-spacing: 1px; }
+        .card { background: var(--glass); border: 1px solid var(--glass-border); padding: 25px; border-radius: 20px; flex: 1; }
         .card b { font-size: 2.2rem; display: block; color: var(--neon-blue); }
-
-        /* Glass Table */
-        .table-container {
-            background: var(--glass); border: 1px solid var(--glass-border);
-            border-radius: 20px; overflow: hidden; backdrop-filter: blur(10px);
-        }
+        .table-container { background: var(--glass); border: 1px solid var(--glass-border); border-radius: 20px; overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
-        th { background: rgba(255,255,255,0.02); padding: 18px; text-align: left; font-size: 0.75rem; color: #555; text-transform: uppercase; }
+        th { background: rgba(255,255,255,0.02); padding: 18px; text-align: left; font-size: 0.75rem; color: #555; }
         td { padding: 15px 18px; border-bottom: 1px solid var(--glass-border); font-size: 0.9rem; }
-
-        .badge-key { background: rgba(0,210,255,0.1); color: var(--neon-blue); padding: 4px 10px; border-radius: 8px; font-family: monospace; font-weight: bold; }
+        .badge-key { background: rgba(0,210,255,0.1); color: var(--neon-blue); padding: 4px 10px; border-radius: 8px; font-weight: bold; }
         .status-dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 5px; }
         .status-dot.ativada { background: var(--neon-green); box-shadow: 0 0 10px var(--neon-green); }
         .status-dot.banido { background: var(--neon-red); box-shadow: 0 0 10px var(--neon-red); }
-
-        /* Botões de Ação */
-        .btn-action {
-            background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border);
-            color: #fff; padding: 8px; border-radius: 8px; cursor: pointer; transition: 0.2s;
-        }
-        .btn-action:hover { background: #fff; color: #000; }
+        .btn-action { background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: #fff; padding: 8px; border-radius: 8px; cursor: pointer; }
         .btn-action.red:hover { background: var(--neon-red); }
         .btn-action.green:hover { background: var(--neon-green); }
-
-        /* Forms */
         .box { background: var(--glass); padding: 30px; border-radius: 20px; border: 1px solid var(--glass-border); max-width: 500px; }
-        input, textarea {
-            width: 100%; padding: 14px; margin: 10px 0; background: rgba(0,0,0,0.3);
-            border: 1px solid var(--glass-border); color: #fff; border-radius: 12px; box-sizing: border-box;
-        }
-        .btn-main {
-            background: linear-gradient(90deg, var(--neon-blue), #0082ff);
-            color: #fff; border: none; padding: 16px; width: 100%; border-radius: 12px;
-            font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(0, 130, 255, 0.3);
-        }
+        input, textarea { width: 100%; padding: 14px; margin: 10px 0; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: #fff; border-radius: 12px; }
+        .btn-main { background: linear-gradient(90deg, var(--neon-blue), #0082ff); color: #fff; border: none; padding: 16px; width: 100%; border-radius: 12px; font-weight: bold; cursor: pointer; }
+        .uid-col { color: #444; font-family: monospace; max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;500;900&display=swap" rel="stylesheet">
 </head>
@@ -225,31 +176,28 @@
 
 <aside>
     <div class="logo">VORTEX</div>
-    
     <nav>
         <div class="nav-link active" onclick="showTab('tab-clientes')">👥 Clientes</div>
         <div class="nav-link" onclick="showTab('tab-resellers')">🤝 Revendedores</div>
         <div class="nav-link" onclick="showTab('tab-gerar')">🔑 Gerar Master</div>
         <div class="nav-link" onclick="showTab('tab-up')">🚀 Enviar Update</div>
     </nav>
-
     <div class="music-player">
-        <iframe style="border-radius:12px" src="https://open.spotify.com/embed/playlist/37i9dQZF1DX8Ueb9CidzhR?utm_source=generator&theme=0" width="100%" height="80" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+        <iframe style="border-radius:12px" src="https://open.spotify.com/embed/playlist/37i9dQZF1DX8Ueb9CidzhR?utm_source=generator&theme=0" width="100%" height="80" frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
     </div>
 </aside>
 
 <main>
     <div id="tab-clientes" class="tab-content active">
         <div class="stats">
-            <div class="card"><span>Total de Chaves</span><b id="count-total">0</b></div>
-            <div class="card"><span>Usuários Online</span><b id="count-ativos">0</b></div>
+            <div class="card"><span>Total Keys</span><b id="count-total">0</b></div>
+            <div class="card"><span>Ativos</span><b id="count-ativos">0</b></div>
             <div class="card"><span>Banidos</span><b id="count-banidos" style="color:var(--neon-red)">0</b></div>
         </div>
-
         <div class="table-container">
             <table>
                 <thead>
-                    <tr><th>Chave</th><th>Status</th><th>Validade</th><th>Dispositivo</th><th>Dono</th><th>Ações</th></tr>
+                    <tr><th>Chave</th><th>Status</th><th>Duração</th><th>UID</th><th>Criado</th><th>Ações</th></tr>
                 </thead>
                 <tbody id="userTable"></tbody>
             </table>
@@ -259,17 +207,15 @@
     <div id="tab-resellers" class="tab-content">
         <div class="box">
             <h3>Novo Revendedor</h3>
-            <input type="text" id="res_user" placeholder="Login do Revenda">
-            <input type="text" id="res_pass" placeholder="Senha do Revenda">
+            <input type="text" id="res_user" placeholder="Login">
+            <input type="text" id="res_pass" placeholder="Senha">
             <input type="number" id="res_cred" placeholder="Créditos Iniciais">
             <button class="btn-main" onclick="criarRevendedor()">CRIAR CONTA</button>
         </div>
         <br>
         <div class="table-container">
             <table>
-                <thead>
-                    <tr><th>Login</th><th>Senha</th><th>Saldo</th><th>Gerenciar</th></tr>
-                </thead>
+                <thead><tr><th>Login</th><th>Senha</th><th>Saldo</th><th>Ações</th></tr></thead>
                 <tbody id="resellerTable"></tbody>
             </table>
         </div>
@@ -277,20 +223,21 @@
 
     <div id="tab-gerar" class="tab-content">
         <div class="box">
-            <h3>Gerar Key Admin</h3>
-            <p>Gera uma key de 30 dias automaticamente.</p>
+            <h3>Gerador Master</h3>
+            <input type="text" id="k_prefix" placeholder="Prefixo (Ex: VIP)" value="VTX">
+            <input type="number" id="k_dias" placeholder="Dias" value="30">
             <button class="btn-main" onclick="gerarKeyMaster()">GERAR KEY AGORA</button>
         </div>
     </div>
 
     <div id="tab-up" class="tab-content">
         <div class="box">
-            <h3>Lançar Nova Atualização</h3>
-            <input type="text" id="up_t" placeholder="Título (Ex: Nova Versão!)">
-            <textarea id="up_d" placeholder="O que mudou?"></textarea>
-            <input type="text" id="up_v" placeholder="Versão (Ex: 2.0)">
-            <input type="text" id="up_l" placeholder="Link Direto do APK">
-            <button class="btn-main" onclick="enviarUpdate()">LANÇAR PARA TODOS</button>
+            <h3>Lançar Update</h3>
+            <input type="text" id="up_t" placeholder="Título">
+            <textarea id="up_d" placeholder="Descrição"></textarea>
+            <input type="text" id="up_v" placeholder="Versão">
+            <input type="text" id="up_l" placeholder="Link Direto">
+            <button class="btn-main" onclick="enviarUpdate()">PUBLICAR AGORA</button>
         </div>
     </div>
 </main>
