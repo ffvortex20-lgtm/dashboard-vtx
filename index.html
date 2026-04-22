@@ -26,7 +26,7 @@
             document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
             document.getElementById(tabId).style.display = 'block';
             document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
-            event.currentTarget.classList.add('active');
+            if(event) event.currentTarget.classList.add('active');
         };
 
         function init() {
@@ -34,11 +34,12 @@
             onValue(ref(db, 'KeysUsers'), (snapshot) => {
                 const list = document.getElementById('userTable');
                 list.innerHTML = "";
-                let ativos = 0, banidos = 0;
+                let ativos = 0, banidos = 0, total = 0;
 
                 snapshot.forEach((child) => {
                     const data = child.val();
                     const id = child.key;
+                    total++;
                     if(data.status === "ativada") ativos++;
                     if(data.status === "banido") banidos++;
 
@@ -47,18 +48,19 @@
                             <td><b>${data.key || '---'}</b></td>
                             <td><span class="status ${data.status}">${data.status}</span></td>
                             <td>${data.validade || '1'} Dias</td>
-                            <td class="uid-col">${data.uid || 'Nenhum'}</td>
+                            <td class="uid-col" title="${data.uid}">${data.uid || 'Nenhum'}</td>
+                            <td><small>${data.criadoPor || 'Admin'}</small></td>
                             <td class="actions">
-                                <button onclick="upStat('KeysUsers/${id}','ativada')">Ativar</button>
-                                <button onclick="upStat('KeysUsers/${id}','pausada')">Pausar</button>
-                                <button class="ban" onclick="upStat('KeysUsers/${id}','banido')">Banir</button>
-                                <button class="reset" onclick="resetHWID('${id}')">Reset</button>
-                                <button class="del" onclick="deleteData('KeysUsers/${id}')">Remover</button>
+                                <button class="btn-opt" onclick="upStat('KeysUsers/${id}','ativada')">✔</button>
+                                <button class="btn-opt ban" onclick="upStat('KeysUsers/${id}','banido')">🚫</button>
+                                <button class="btn-opt reset" onclick="resetHWID('${id}')">🔄</button>
+                                <button class="btn-opt del" onclick="deleteData('KeysUsers/${id}')">🗑</button>
                             </td>
                         </tr>`;
                 });
                 document.getElementById('count-ativos').innerText = ativos;
                 document.getElementById('count-banidos').innerText = banidos;
+                document.getElementById('count-total').innerText = total;
             });
 
             // MONITORAR REVENDEDORES
@@ -71,55 +73,52 @@
                     list.innerHTML += `
                         <tr>
                             <td><b>${data.user}</b></td>
-                            <td><code>${data.pass}</code></td>
+                            <td><code class="pass-view">${data.pass}</code></td>
                             <td><b style="color:#00ccff">${data.credits || 0}</b></td>
                             <td class="actions">
-                                <button onclick="addCredit('${resId}', ${data.credits || 0})">+ Créditos</button>
-                                <button onclick="resetResPass('${resId}')">Reset Senha</button>
-                                <button class="del" onclick="deleteData('Resellers/${resId}')">Excluir</button>
+                                <button class="btn-opt" onclick="addCredit('${resId}', ${data.credits || 0})">+ Créditos</button>
+                                <button class="btn-opt" onclick="resetResPass('${resId}')">Senha</button>
+                                <button class="btn-opt del" onclick="deleteData('Resellers/${resId}')">Excluir</button>
                             </td>
                         </tr>`;
                 });
             });
         }
 
-        // --- FUNÇÕES DE CONTROLE ---
+        // --- FUNÇÕES CORE ---
         window.upStat = (path, s) => update(ref(db, path), { status: s });
-        window.resetHWID = (id) => update(ref(db, `KeysUsers/${id}`), { uid: "RESETADO", device: "Limpo pelo ADM" });
-        window.deleteData = (path) => confirm("Excluir permanentemente?") && remove(ref(db, path));
+        window.resetHWID = (id) => update(ref(db, `KeysUsers/${id}`), { uid: "RESETADO", device: "Resetado pelo ADM" });
+        window.deleteData = (path) => confirm("Tem certeza que deseja excluir?") && remove(ref(db, path));
 
-        // GERENCIAR REVENDEDORES
         window.criarRevendedor = () => {
             const user = document.getElementById('res_user').value;
             const pass = document.getElementById('res_pass').value;
             const cred = document.getElementById('res_cred').value || "0";
             if(!user || !pass) return alert("Preencha Login e Senha!");
             set(ref(db, `Resellers/${user}`), { user, pass, credits: parseInt(cred) });
-            alert("Revendedor Criado!");
+            alert("Revendedor Criado com sucesso!");
         };
 
         window.addCredit = (id, atual) => {
-            const qtd = prompt("Adicionar quantos créditos?");
-            if(qtd) update(ref(db, `Resellers/${id}`), { credits: atual + parseInt(qtd) });
+            const qtd = prompt("Quantidade de créditos a ADICIONAR:");
+            if(qtd && !isNaN(qtd)) update(ref(db, `Resellers/${id}`), { credits: atual + parseInt(qtd) });
         };
 
         window.resetResPass = (id) => {
-            const nova = prompt("Nova senha:");
+            const nova = prompt("Defina a nova senha:");
             if(nova) update(ref(db, `Resellers/${id}`), { pass: nova });
         };
 
-        // GERAR KEY MASTER
         window.gerarKeyMaster = () => {
             const prefix = document.getElementById('k_prefix').value || "VTX";
             const dias = document.getElementById('k_dias').value || "30";
             const novaKey = `${prefix}-${Math.floor(1000 + Math.random() * 9000)}`;
             set(ref(db, `KeysUsers/KEY-${Date.now()}`), {
-                key: novaKey, status: "ativada", uid: "AGUARDANDO", validade: dias, device: "Painel Master"
+                key: novaKey, status: "ativada", uid: "AGUARDANDO", validade: dias, device: "Painel Master", criadoPor: "ADMIN"
             });
             alert("Key Gerada: " + novaKey);
         };
 
-        // SISTEMA DE UPDATE
         window.enviarUpdate = () => {
             const upData = {
                 title: document.getElementById('up_t').value,
@@ -127,102 +126,124 @@
                 ver: document.getElementById('up_v').value,
                 link: document.getElementById('up_l').value
             };
-            set(ref(db, 'update'), upData).then(() => alert("Update publicado!"));
+            set(ref(db, 'update'), upData).then(() => alert("Configuração de Update enviada!"));
         };
 
         init();
     </script>
 
     <style>
-        body { margin: 0; background: #050505; color: #fff; font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
-        aside { width: 240px; background: #000; border-right: 1px solid #1a1a1a; padding: 25px; flex-shrink: 0; }
-        .logo { color: #00ccff; font-weight: bold; text-align: center; font-size: 1.4rem; margin-bottom: 30px; border-bottom: 1px solid #1a1a1a; padding-bottom: 15px; }
-        .nav-link { display: block; padding: 12px; color: #666; text-decoration: none; cursor: pointer; border-radius: 8px; margin-bottom: 8px; font-weight: bold; transition: 0.3s; }
-        .nav-link:hover, .nav-link.active { background: #111; color: #00ccff; }
-        main { flex-grow: 1; padding: 30px; overflow-y: auto; background: #080808; }
-        .tab-content { display: none; animation: fadeIn 0.3s; }
-        .stats { display: flex; gap: 20px; margin-bottom: 25px; }
-        .card { background: #111; padding: 20px; border-radius: 12px; flex: 1; border-bottom: 3px solid #00ccff; }
-        .card b { font-size: 1.8rem; color: #00ccff; display: block; }
-        .table-container { background: #111; border-radius: 12px; border: 1px solid #1a1a1a; overflow: hidden; margin-top: 20px; }
+        :root { --primary: #00ccff; --bg: #050505; --card-bg: #0f0f0f; --text: #eee; }
+        body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Segoe UI', sans-serif; display: flex; height: 100vh; overflow: hidden; }
+        
+        aside { width: 250px; background: #000; border-right: 1px solid #1a1a1a; padding: 25px; display: flex; flex-direction: column; }
+        .logo { color: var(--primary); font-weight: 800; text-align: center; font-size: 1.5rem; margin-bottom: 35px; letter-spacing: 2px; }
+        
+        .nav-link { display: block; padding: 12px 15px; color: #777; text-decoration: none; cursor: pointer; border-radius: 8px; margin-bottom: 10px; font-weight: 600; transition: 0.2s; }
+        .nav-link:hover, .nav-link.active { background: #111; color: var(--primary); box-shadow: inset 4px 0 0 var(--primary); }
+        
+        main { flex-grow: 1; padding: 40px; overflow-y: auto; background: radial-gradient(circle at top right, #0a0a0a, #050505); }
+        
+        .stats { display: flex; gap: 20px; margin-bottom: 30px; }
+        .card { background: var(--card-bg); padding: 20px; border-radius: 15px; flex: 1; border: 1px solid #1a1a1a; transition: 0.3s; }
+        .card:hover { border-color: var(--primary); transform: translateY(-5px); }
+        .card span { color: #555; font-size: 0.8rem; text-transform: uppercase; font-weight: bold; }
+        .card b { font-size: 2rem; color: var(--primary); display: block; margin-top: 5px; }
+
+        .table-container { background: var(--card-bg); border-radius: 15px; border: 1px solid #1a1a1a; overflow: hidden; }
         table { width: 100%; border-collapse: collapse; }
-        th { background: #1a1a1a; padding: 15px; text-align: left; color: #444; font-size: 0.7rem; text-transform: uppercase; }
-        td { padding: 12px 15px; border-bottom: 1px solid #1a1a1a; font-size: 0.85rem; }
-        .uid-col { color: #444; font-family: monospace; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .status.ativada { color: #00ff88; }
-        .status.banido { color: #ff4444; }
-        .actions { display: flex; gap: 5px; }
-        .actions button { padding: 5px 8px; background: #000; border: 1px solid #333; color: #bbb; cursor: pointer; border-radius: 4px; font-size: 0.7rem; }
-        .actions .ban { color: #ff4444; }
-        .actions .reset { color: #00ff88; }
-        .actions .del { background: #ff4444; color: #fff; border: none; }
-        .box { background: #111; padding: 25px; border-radius: 15px; max-width: 450px; border: 1px solid #1a1a1a; margin-bottom: 20px; }
-        input, textarea { width: 100%; padding: 12px; margin: 8px 0; background: #000; border: 1px solid #222; color: #fff; border-radius: 8px; box-sizing: border-box; }
-        .btn-main { background: #00ccff; color: #000; border: none; padding: 15px; width: 100%; font-weight: bold; cursor: pointer; border-radius: 8px; margin-top: 10px; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        th { background: #151515; padding: 15px; text-align: left; color: #444; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; }
+        td { padding: 15px; border-bottom: 1px solid #1a1a1a; font-size: 0.9rem; }
+        
+        .uid-col { color: #555; font-family: monospace; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .pass-view { background: #1a1a1a; padding: 4px 8px; border-radius: 4px; color: #ffcc00; }
+        
+        .status { padding: 4px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: bold; text-transform: uppercase; }
+        .status.ativada { background: rgba(0, 255, 136, 0.1); color: #00ff88; }
+        .status.banido { background: rgba(255, 68, 68, 0.1); color: #ff4444; }
+
+        .actions { display: flex; gap: 8px; }
+        .btn-opt { background: #1a1a1a; border: 1px solid #333; color: white; padding: 6px 10px; border-radius: 6px; cursor: pointer; transition: 0.2s; }
+        .btn-opt:hover { background: var(--primary); color: #000; }
+        .btn-opt.ban:hover { background: #ff4444; }
+        .btn-opt.del:hover { background: #ff0000; }
+
+        .box { background: var(--card-bg); padding: 30px; border-radius: 20px; max-width: 500px; border: 1px solid #1a1a1a; }
+        input, textarea { width: 100%; padding: 12px; margin: 10px 0; background: #000; border: 1px solid #222; color: #fff; border-radius: 10px; box-sizing: border-box; outline: none; }
+        input:focus { border-color: var(--primary); }
+        .btn-main { background: var(--primary); color: #000; border: none; padding: 16px; width: 100%; font-weight: bold; cursor: pointer; border-radius: 10px; font-size: 1rem; transition: 0.3s; }
+        .btn-main:hover { opacity: 0.8; transform: scale(0.98); }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .tab-content { animation: fadeIn 0.4s ease; }
     </style>
 </head>
 <body>
 
 <aside>
     <div class="logo">VORTEX MASTER</div>
-    <a class="nav-link active" onclick="showTab('tab-clientes')">👥 Clientes</a>
-    <a class="nav-link" onclick="showTab('tab-resellers')">🤝 Revendedores</a>
-    <a class="nav-link" onclick="showTab('tab-gerar')">🔑 Gerar Keys</a>
-    <a class="nav-link" onclick="showTab('tab-up')">🚀 Sistema Update</a>
+    <nav>
+        <a class="nav-link active" onclick="showTab('tab-clientes')">🌐 Painel Clientes</a>
+        <a class="nav-link" onclick="showTab('tab-resellers')">🤝 Gestão Revendas</a>
+        <a class="nav-link" onclick="showTab('tab-gerar')">🔑 Gerador Master</a>
+        <a class="nav-link" onclick="showTab('tab-up')">📡 Injetar Update</a>
+    </nav>
 </aside>
 
 <main>
-    <div id="tab-clientes" class="tab-content" style="display:block">
+    <div id="tab-clientes" class="tab-content">
         <div class="stats">
-            <div class="card"><span>Ativos</span><b id="count-ativos">0</b></div>
-            <div class="card"><span>Banidos</span><b id="count-banidos">0</b></div>
+            <div class="card"><span>Total Keys</span><b id="count-total">0</b></div>
+            <div class="card"><span>Online / Ativas</span><b id="count-ativos">0</b></div>
+            <div class="card"><span>Total Banidos</span><b id="count-banidos">0</b></div>
         </div>
         <div class="table-container">
             <table>
                 <thead>
-                    <tr><th>Chave</th><th>Status</th><th>Validade</th><th>Dispositivo</th><th>Ações</th></tr>
+                    <tr><th>Chave</th><th>Status</th><th>Validade</th><th>HWID</th><th>Criado Por</th><th>Comandos</th></tr>
                 </thead>
                 <tbody id="userTable"></tbody>
             </table>
         </div>
     </div>
 
-    <div id="tab-resellers" class="tab-content">
+    <div id="tab-resellers" class="tab-content" style="display:none">
         <div class="box">
-            <h3>Criar Revendedor</h3>
-            <input type="text" id="res_user" placeholder="Login">
-            <input type="text" id="res_pass" placeholder="Senha">
+            <h3 style="margin-top:0">Novo Ponto de Revenda</h3>
+            <input type="text" id="res_user" placeholder="Nome de Usuário">
+            <input type="text" id="res_pass" placeholder="Senha de Acesso">
             <input type="number" id="res_cred" placeholder="Créditos Iniciais">
-            <button class="btn-main" onclick="criarRevendedor()">CRIAR CONTA</button>
+            <button class="btn-main" onclick="criarRevendedor()">CRIAR CONTA REVENDA</button>
         </div>
+        <br>
         <div class="table-container">
             <table>
                 <thead>
-                    <tr><th>Login</th><th>Senha</th><th>Créditos</th><th>Ações</th></tr>
+                    <tr><th>Revendedor</th><th>Senha</th><th>Saldo</th><th>Gerenciar</th></tr>
                 </thead>
                 <tbody id="resellerTable"></tbody>
             </table>
         </div>
     </div>
 
-    <div id="tab-gerar" class="tab-content">
+    <div id="tab-gerar" class="tab-content" style="display:none">
         <div class="box">
-            <h3>Gerar Nova Credencial</h3>
-            <input type="text" id="k_prefix" placeholder="Prefixo (Ex: MASTER)">
-            <input type="number" id="k_dias" value="30">
+            <h3>Gerar Acesso VIP (Master)</h3>
+            <p style="color:#666; font-size:0.8rem">Gera chaves diretamente no sistema sem custo de créditos.</p>
+            <input type="text" id="k_prefix" placeholder="Prefixo da Key (Ex: VORTEX)">
+            <input type="number" id="k_dias" value="30" placeholder="Dias">
             <button class="btn-main" onclick="gerarKeyMaster()">GERAR E SALVAR</button>
         </div>
     </div>
 
-    <div id="tab-up" class="tab-content">
+    <div id="tab-up" class="tab-content" style="display:none">
         <div class="box">
-            <h3>Update Remoto</h3>
-            <input type="text" id="up_t" placeholder="Nome do App">
-            <textarea id="up_d" placeholder="Notas da atualização..."></textarea>
-            <input type="text" id="up_v" placeholder="Versão (Ex: 1.0)">
-            <input type="text" id="up_l" placeholder="Link Direto">
-            <button class="btn-main" onclick="enviarUpdate()">PUBLICAR AGORA</button>
+            <h3>Configurar Update Remoto</h3>
+            <input type="text" id="up_t" placeholder="Título da Mensagem">
+            <textarea id="up_d" rows="4" placeholder="Descrição da Versão (Novidades)"></textarea>
+            <input type="text" id="up_v" placeholder="Versão Atual (Ex: 1.5)">
+            <input type="text" id="up_l" placeholder="Link Direto do Download">
+            <button class="btn-main" onclick="enviarUpdate()">LANÇAR UPDATE</button>
         </div>
     </div>
 </main>
