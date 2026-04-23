@@ -43,11 +43,16 @@
                     if(data.status === "ativada") ativos++;
                     if(data.status === "banido") banidos++;
 
+                    // Ajuste de leitura para aceitar 'dias' ou 'validade' e tratar o símbolo infinito
+                    const displayDias = data.dias || data.validade || '1';
+                    const displayDisp = data.dispositivos || '1';
+
                     list.innerHTML += `
                         <tr>
                             <td><span class="badge-key">${data.key || '---'}</span></td>
                             <td><span class="status-dot ${data.status}"></span> ${data.status}</td>
-                            <td>${data.validade || '1'}D</td>
+                            <td>${displayDias}${displayDias === '∞' ? '' : 'D'}</td>
+                            <td><small>${displayDisp}</small></td>
                             <td class="uid-col" title="${data.uid}">${data.uid || 'Nenhum'}</td>
                             <td><small>${data.criadoPor || 'Admin'}</small></td>
                             <td class="actions">
@@ -63,7 +68,7 @@
                 document.getElementById('count-banidos').innerText = banidos;
             });
 
-            // MONITOR REVENDAS
+            // MONITOR REVENDAS (Igual ao anterior)
             onValue(ref(db, 'Resellers'), (snapshot) => {
                 const list = document.getElementById('resellerTable');
                 list.innerHTML = "";
@@ -85,7 +90,7 @@
 
         // FUNÇÕES ADMINISTRATIVAS
         window.upStat = (path, s) => update(ref(db, path), { status: s });
-        window.resetHWID = (id) => update(ref(db, `KeysUsers/${id}`), { uid: "RESETADO", device: "Limpo pelo ADM" });
+        window.resetHWID = (id) => update(ref(db, `KeysUsers/${id}`), { uid: "RESETADO", device: "" });
         window.deleteData = (path) => confirm("Excluir definitivamente?") && remove(ref(db, path));
         
         window.addCredit = (id, atual) => {
@@ -102,6 +107,29 @@
             alert("Revendedor Criado!");
         };
 
+        // GERAR MASTER CORRIGIDO (Foto 2 e 3)
+        window.gerarKeyMaster = () => {
+            const prefix = document.getElementById('k_prefix').value || "VTX";
+            const inputDias = document.getElementById('k_dias').value;
+            
+            // Se colocar 0, gera Ilimitado conforme suas fotos
+            const finalDias = (inputDias === "0" || inputDias === "") ? "∞" : inputDias;
+            const finalDisp = (inputDias === "0" || inputDias === "") ? "Livre" : "1";
+
+            const randomNum = Math.floor(1000 + Math.random() * 9000);
+            const novaKey = `${prefix}-${randomNum}`;
+            
+            set(ref(db, `KeysUsers/KEY-${Date.now()}`), {
+                key: novaKey, 
+                status: "ativada", 
+                uid: "RESETADO", 
+                dias: finalDias, 
+                dispositivos: finalDisp,
+                criadoPor: "ADMIN", 
+                device: ""
+            }).then(() => alert("Key Gerada: " + novaKey + " (" + finalDias + ")"));
+        };
+
         window.enviarUpdate = () => {
             set(ref(db, 'update'), {
                 title: document.getElementById('up_t').value,
@@ -109,18 +137,6 @@
                 ver: document.getElementById('up_v').value,
                 link: document.getElementById('up_l').value
             }).then(() => alert("Update Publicado!"));
-        };
-
-        // GERAR MASTER CORRIGIDO
-        window.gerarKeyMaster = () => {
-            const prefix = document.getElementById('k_prefix').value || "VTX";
-            const dias = document.getElementById('k_dias').value || "30";
-            const randomNum = Math.floor(1000 + Math.random() * 9000);
-            const novaKey = `${prefix}-${randomNum}`;
-            
-            set(ref(db, `KeysUsers/KEY-${Date.now()}`), {
-                key: novaKey, status: "ativada", uid: "AGUARDANDO", validade: dias, criadoPor: "ADMIN", device: "Painel Master"
-            }).then(() => alert("Key Gerada: " + novaKey));
         };
 
         init();
@@ -165,6 +181,7 @@
         .btn-action { background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); color: #fff; padding: 8px; border-radius: 8px; cursor: pointer; }
         .btn-action.red:hover { background: var(--neon-red); }
         .btn-action.green:hover { background: var(--neon-green); }
+        .btn-action.blue:hover { background: var(--neon-blue); }
         .box { background: var(--glass); padding: 30px; border-radius: 20px; border: 1px solid var(--glass-border); max-width: 500px; }
         input, textarea { width: 100%; padding: 14px; margin: 10px 0; background: rgba(0,0,0,0.3); border: 1px solid var(--glass-border); color: #fff; border-radius: 12px; }
         .btn-main { background: linear-gradient(90deg, var(--neon-blue), #0082ff); color: #fff; border: none; padding: 16px; width: 100%; border-radius: 12px; font-weight: bold; cursor: pointer; }
@@ -183,7 +200,7 @@
         <div class="nav-link" onclick="showTab('tab-up')">🚀 Enviar Update</div>
     </nav>
     <div class="music-player">
-        <iframe style="border-radius:12px" src="https://open.spotify.com/embed/playlist/37i9dQZF1DX8Ueb9CidzhR?utm_source=generator&theme=0" width="100%" height="80" frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
+        <iframe style="border-radius:12px" src="https://open.spotify.com/embed/playlist/37i9dQZF1DXcBWIGvPBcmU" width="100%" height="80" frameBorder="0" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
     </div>
 </aside>
 
@@ -197,7 +214,7 @@
         <div class="table-container">
             <table>
                 <thead>
-                    <tr><th>Chave</th><th>Status</th><th>Duração</th><th>UID</th><th>Criado</th><th>Ações</th></tr>
+                    <tr><th>Chave</th><th>Status</th><th>Duração</th><th>Disp.</th><th>UID</th><th>Criado</th><th>Ações</th></tr>
                 </thead>
                 <tbody id="userTable"></tbody>
             </table>
@@ -224,8 +241,9 @@
     <div id="tab-gerar" class="tab-content">
         <div class="box">
             <h3>Gerador Master</h3>
-            <input type="text" id="k_prefix" placeholder="Prefixo (Ex: VIP)" value="VTX">
-            <input type="number" id="k_dias" placeholder="Dias" value="30">
+            <p style="font-size: 0.8rem; color: #888;">(Coloque 0 dias para Key Ilimitada/Livre)</p>
+            <input type="text" id="k_prefix" placeholder="Prefixo (Ex: MASTER)" value="VTX">
+            <input type="number" id="k_dias" placeholder="Dias (0 = Ilimitado)" value="30">
             <button class="btn-main" onclick="gerarKeyMaster()">GERAR KEY AGORA</button>
         </div>
     </div>
